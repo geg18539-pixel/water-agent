@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>水环境智能助手</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <style>
+    :root {
+      --bg: #eef4f9;
+      --surface: #ffffff;
+      --surface-2: #f4f8fb;
+      --ink: #0e2a3a;
+      --ink-2: #5b7282;
+      --accent: #0e7c7b;
+      --accent-deep: #0a5f5e;
+      --accent-soft: #d9f0f0;
+      --accent-bright: #2dd4bf;
+      --border: #dde7ee;
+      --danger: #b42318;
+      --blue-grad: linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%);
+      --shadow: 0 10px 30px rgba(14, 42, 58, 0.08);
+      --shadow-bubble: 0 2px 8px rgba(14, 42, 58, 0.08);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    #app { height: 100vh; display: flex; flex-direction: column; }
+
+    .navbar {
+      flex: 0 0 auto;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 1px 6px rgba(14, 42, 58, 0.04);
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      background: linear-gradient(120deg, var(--accent-deep), #14919b 55%, var(--accent-bright));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .logo .emoji { -webkit-text-fill-color: initial; }
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--ink-2);
+      padding: 6px 14px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+    }
+    .status .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      animation: pulse 1.8s infinite;
+    }
+    @keyframes pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
+      70%  { box-shadow: 0 0 0 7px rgba(34, 197, 94, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+    }
+
+    .layout {
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+      max-width: 1160px;
+      margin: 0 auto;
+      display: flex;
+      gap: 16px;
+      padding: 16px 16px 0;
+    }
+
+    .sidebar {
+      flex: 0 0 250px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      overflow-y: auto;
+      align-self: flex-start;
+      max-height: 100%;
+    }
+    .side-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink-2);
+      margin-bottom: 4px;
+    }
+    .quick-item {
+      text-align: left;
+      padding: 11px 13px;
+      font-size: 13.5px;
+      color: var(--ink);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, transform 0.05s;
+    }
+    .quick-item:hover { background: var(--accent-soft); border-color: var(--accent-bright); }
+    .quick-item:active { transform: scale(0.98); }
+    .quick-item:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 2px; }
+
+    .chat-card {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      background: var(--surface-2);
+      scroll-behavior: smooth;
+    }
+    .messages::-webkit-scrollbar { width: 8px; }
+    .messages::-webkit-scrollbar-thumb { background: #cfe0e8; border-radius: 8px; }
+    .messages::-webkit-scrollbar-track { background: transparent; }
+
+    .msg {
+      display: flex;
+      align-items: flex-end;
+      gap: 9px;
+      max-width: 80%;
+      animation: rise 0.28s ease-out both;
+    }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+    .msg.has-chart { max-width: 96%; }
+    .msg.has-chart .bubble { flex: 1; min-width: 0; }
+
+    .avatar {
+      flex: 0 0 auto;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-bubble);
+    }
+    .msg.user .avatar { background: var(--blue-grad); border-color: transparent; }
+
+    .bubble { padding: 12px 15px; font-size: 14px; line-height: 1.65; }
+    .bubble-text { white-space: pre-wrap; word-break: break-word; }
+    .msg.assistant .bubble {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px 16px 16px 4px;
+      box-shadow: var(--shadow-bubble);
+    }
+    .msg.user .bubble {
+      background: var(--blue-grad);
+      color: #fff;
+      border-radius: 16px 16px 4px 16px;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.28);
+    }
+    .msg.error .bubble { background: #fdecea; border: 1px solid #f5c6c0; color: var(--danger); }
+
+    .hl {
+      display: inline-block;
+      padding: 0 6px;
+      margin: 0 1px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .hl-cod     { background: rgba(249, 115, 22, 0.14);  color: #c2410c; }
+    .hl-ph      { background: rgba(16, 185, 129, 0.14);  color: #047857; }
+    .hl-ammonia { background: rgba(139, 92, 246, 0.14);  color: #6d28d9; }
+    .hl-num     { background: rgba(14, 124, 123, 0.14);  color: var(--accent-deep); }
+
+    .chart-box { width: 100%; height: 230px; margin-top: 12px; }
+
+    .thinking { display: flex; align-items: center; gap: 8px; }
+    .thinking-label { color: var(--ink-2); font-size: 13px; }
+    .wave { display: inline-flex; align-items: center; gap: 4px; }
+    .wave i {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent-bright);
+      animation: bounce 1.2s infinite ease-in-out;
+    }
+    .wave i:nth-child(2) { animation-delay: 0.15s; }
+    .wave i:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+      40%           { transform: translateY(-6px); opacity: 1; }
+    }
+
+    .composer {
+      display: flex;
+      gap: 10px;
+      padding: 12px 14px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .composer input {
+      flex: 1;
+      padding: 12px 16px;
+      font-size: 14px;
+      color: var(--ink);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .composer input::placeholder { color: #9ab0bd; }
+    .composer input:focus { border-color: var(--accent-bright); box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.18); }
+    .send-btn {
+      flex: 0 0 auto;
+      padding: 0 24px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      background: var(--accent);
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.05s;
+    }
+    .send-btn:hover:not(:disabled) { background: var(--accent-deep); }
+    .send-btn:active:not(:disabled) { transform: scale(0.97); }
+    .send-btn:disabled { background: #b9d4d3; cursor: not-allowed; }
+    .send-btn:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 2px; }
+
+    @media (max-width: 820px) {
+      .layout { flex-direction: column; }
+      .sidebar { flex: 0 0 auto; max-height: none; flex-direction: row; flex-wrap: wrap; align-items: center; padding: 10px 12px; }
+      .side-title { width: 100%; }
+      .quick-item { flex: 1 1 auto; }
+    }
+    @media (max-width: 480px) {
+      .navbar { padding: 0 14px; }
+      .logo { font-size: 16px; }
+      .msg { max-width: 92%; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <nav class="navbar">
+      <div class="logo"><span class="emoji">🌊</span> 水环境智能助手</div>
+      <div class="status"><span class="dot"></span> 系统运行中</div>
+    </nav>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <div class="side-title">快捷提问</div>
+        <button v-for="q in quickQuestions" :key="q" class="quick-item" @click="useQuick(q)">
+          {{ q }}
+        </button>
+      </aside>
+
+      <section class="chat-card">
+        <div class="messages" ref="scrollBox">
+          <div v-for="(m, i) in messages" :key="i" class="msg" :class="[m.role, { error: m.error, 'has-chart': m.chart }]">
+            <span class="avatar">{{ m.role === 'user' ? '🙋' : '🌊' }}</span>
+            <div class="bubble">
+              <div class="bubble-text" v-html="bubbleHtml(m)"></div>
+              <div v-if="m.chart" class="chart-box" :data-chart="i"></div>
+            </div>
+          </div>
+
+          <div v-if="loading" class="msg assistant">
+            <span class="avatar">🌊</span>
+            <div class="bubble">
+              <div class="thinking">
+                <span class="thinking-label">AI 思考中</span>
+                <span class="wave"><i></i><i></i><i></i></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="composer">
+          <input
+            ref="inputBox"
+            v-model="question"
+            type="text"
+            placeholder="输入你的问题，回车发送…"
+            :disabled="loading"
+            @keydown.enter="send"
+          />
+          <button class="send-btn" :disabled="loading" @click="send">
+            {{ loading ? '思考中...' : '发送' }}
+          </button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const API_URL = 'http://localhost:8000/ask';
+
+    const { createApp, ref, nextTick, watch } = Vue;
+
+    // 会话 ID：存在 localStorage，保证多轮对话共享同一会话上下文
+    function getSessionId() {
+      let id = localStorage.getItem('water_session_id');
+      if (!id) {
+        id = 'sess-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+        localStorage.setItem('water_session_id', id);
+      }
+      return id;
+    }
+    const sessionId = getSessionId();
+
+    function escapeHtml(s) {
+      return s.replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    }
+
+    function colorize(text) {
+      let html = escapeHtml(text);
+      html = html.replace(/(COD|pH|氨氮)[^0-9]{0,6}?(\d+(?:\.\d+)?)/gi, (m, metric, num) => {
+        const cls = /cod/i.test(metric) ? 'hl-cod'
+                  : /ph/i.test(metric) ? 'hl-ph' : 'hl-ammonia';
+        return m.replace(num, `<span class="hl ${cls}">${num}</span>`);
+      });
+      const parts = html.split(/(<span class="hl[^>]*>.*?<\/span>)/g);
+      return parts.map(p => {
+        if (p.startsWith('<span class="hl')) return p;
+        return p.replace(/\d+(?:\.\d+)?/g, (num, offset, s) => {
+          if (/^\d{4}$/.test(num)) return num;
+          if (/^[年月日]/.test(s.slice(offset + num.length))) return num;
+          return `<span class="hl hl-num">${num}</span>`;
+        });
+      }).join('');
+    }
+
+    createApp({
+      setup() {
+        const question = ref('');
+        const loading = ref(false);
+        const messages = ref([
+          { role: 'assistant', text: '你好，我是水环境智能助手 🌊\n可以问我关于监测站、pH、COD、氨氮等数据的问题，也可点击左侧快捷提问。\n试试「松原监测站COD变化趋势」还能看到图表，我还能记住上下文，比如接着问「那前郭站呢」。' },
+        ]);
+        const scrollBox = ref(null);
+        const inputBox = ref(null);
+
+        const quickQuestions = [
+          '各监测站平均COD',
+          'pH异常记录',
+          '氨氮浓度超标记录',
+          '松原监测站COD变化趋势',
+          '各监测站最新pH值',
+          '一共有哪些监测站',
+        ];
+
+        const initCharts = () => {
+          document.querySelectorAll('.chart-box:not([data-rendered])').forEach(el => {
+            const idx = el.getAttribute('data-chart');
+            const chart = messages.value[idx] && messages.value[idx].chart;
+            if (!chart || !chart.dates || !chart.values) return;
+            const inst = echarts.init(el);
+            const isLine = chart.type === 'line';
+            inst.setOption({
+              tooltip: { trigger: 'axis' },
+              grid: { left: 48, right: 20, top: 26, bottom: 34 },
+              xAxis: {
+                type: 'category',
+                data: chart.dates,
+                axisLine: { lineStyle: { color: '#cfe0e8' } },
+                axisLabel: { color: '#5b7282' },
+              },
+              yAxis: {
+                type: 'value',
+                splitLine: { lineStyle: { color: '#eef4f9' } },
+                axisLabel: { color: '#5b7282' },
+              },
+              series: [{
+                name: '数值',
+                type: isLine ? 'line' : 'bar',
+                data: chart.values,
+                smooth: true,
+                symbolSize: 6,
+                itemStyle: { color: '#0e7c7b', borderRadius: isLine ? 0 : [4, 4, 0, 0] },
+                lineStyle: { color: '#0e7c7b', width: 2.5 },
+                areaStyle: isLine ? { color: 'rgba(45,212,191,0.18)' } : undefined,
+                barWidth: 16,
+              }],
+            });
+            el.setAttribute('data-rendered', '1');
+          });
+        };
+
+        const scrollToBottom = () => {
+          nextTick(() => {
+            const el = scrollBox.value;
+            if (el) el.scrollTop = el.scrollHeight;
+            initCharts();
+          });
+        };
+
+        watch(messages, scrollToBottom, { deep: true });
+        watch(loading, scrollToBottom);
+
+        window.addEventListener('resize', () => {
+          document.querySelectorAll('.chart-box[data-rendered]').forEach(el => {
+            const inst = echarts.getInstanceByDom(el);
+            if (inst) inst.resize();
+          });
+        });
+
+        const useQuick = (q) => {
+          question.value = q;
+          nextTick(() => inputBox.value && inputBox.value.focus());
+        };
+
+        const bubbleHtml = (m) => {
+          if (m.role === 'user' || m.error) return escapeHtml(m.text);
+          return colorize(m.text);
+        };
+
+        const send = async () => {
+          const q = question.value.trim();
+          if (!q || loading.value) return;
+
+          messages.value.push({ role: 'user', text: q });
+          question.value = '';
+          loading.value = true;
+
+          try {
+            const res = await fetch(API_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ question: q, session_id: sessionId }),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            messages.value.push({
+              role: 'assistant',
+              text: data.answer ?? '没有返回答案。',
+              chart: data.chart || null,
+            });
+          } catch (err) {
+            messages.value.push({
+              role: 'assistant',
+              error: true,
+              text: `请求失败：${err.message}。请确认后端服务已在 http://localhost:8000 启动。`,
+            });
+          } finally {
+            loading.value = false;
+          }
+        };
+
+        return { question, loading, messages, quickQuestions, scrollBox, inputBox, useQuick, bubbleHtml, send };
+      },
+    }).mount('#app');
+  </script>
+</body>
+</html>
